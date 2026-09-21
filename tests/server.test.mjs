@@ -15,6 +15,10 @@ test('connected demo enforces roles, snapshots, report deduplication and email s
  return {ok:true,json:async()=>({result})};};
  const call=async(action,body,cookie,origin='https://demo.example.test')=>{let status=200,result,headers={};const req={url:'/api/rehab?action='+action,method:body?'POST':'GET',headers:{host:'demo.example.test',origin,'content-type':'application/json',cookie:cookie||''},body,socket:{remoteAddress:'test'}};const res={setHeader:(k,v)=>headers[k]=v,status:n=>{status=n;return res},json:d=>{result=d;return res}};await handler(req,res);return {status,result,headers}};
  try{
+ assert.equal((await call('config')).result.cloud,true);
+ process.env.KV_REST_API_URL=process.env.UPSTASH_REDIS_REST_URL;process.env.KV_REST_API_TOKEN=process.env.UPSTASH_REDIS_REST_TOKEN;
+ delete process.env.UPSTASH_REDIS_REST_URL;delete process.env.UPSTASH_REDIS_REST_TOKEN;
+ assert.equal((await call('config')).result.cloud,true);
  assert.equal((await call('data')).status,401);
  const p=await call('login',{role:'patient',code:'patient-demo-secret'}),t=await call('login',{role:'therapist',code:'therapist-demo-secret'});assert.equal(p.status,200);const pc=p.headers['Set-Cookie'],tc=t.headers['Set-Cookie'];assert.ok(pc.includes('HttpOnly'));assert.ok(pc.includes('SameSite=Strict'));
  assert.equal((await call('plan',defaultPlan,pc)).status,403);
