@@ -1,13 +1,14 @@
 import {createHmac,timingSafeEqual,createHash} from 'node:crypto';
 import {defaultPlan,validatePlan} from '../public/motion.js';
 const prefix='reachrise:demo:v1:';
-export const configured=()=>Boolean(process.env.UPSTASH_REDIS_REST_URL&&process.env.UPSTASH_REDIS_REST_TOKEN&&process.env.AUTH_SECRET?.length>=32&&process.env.PATIENT_ACCESS_CODE?.length>=12&&process.env.THERAPIST_ACCESS_CODE?.length>=12&&process.env.PATIENT_ACCESS_CODE!==process.env.THERAPIST_ACCESS_CODE);
+const redisConfig=()=>process.env.UPSTASH_REDIS_REST_URL&&process.env.UPSTASH_REDIS_REST_TOKEN?{url:process.env.UPSTASH_REDIS_REST_URL,token:process.env.UPSTASH_REDIS_REST_TOKEN}:{url:process.env.KV_REST_API_URL,token:process.env.KV_REST_API_TOKEN};
+export const configured=()=>Boolean(redisConfig().url&&redisConfig().token&&process.env.AUTH_SECRET?.length>=32&&process.env.PATIENT_ACCESS_CODE?.length>=12&&process.env.THERAPIST_ACCESS_CODE?.length>=12&&process.env.PATIENT_ACCESS_CODE!==process.env.THERAPIST_ACCESS_CODE);
 const emailConfigured=()=>Boolean(process.env.RESEND_API_KEY&&process.env.EMAIL_FROM&&process.env.THERAPIST_EMAIL&&process.env.APP_URL?.startsWith('https://'));
 const sign=s=>createHmac('sha256',process.env.AUTH_SECRET||'').update(s).digest('base64url');
 export function token(role){const s=Buffer.from(JSON.stringify({role,exp:Date.now()+8*60*60*1000})).toString('base64url');return `${s}.${sign(s)}`}
 export function verifyToken(t){try{const [s,sig,...extra]=t.split('.');if(extra.length||!safeEqual(sig,sign(s)))return null;const d=JSON.parse(Buffer.from(s,'base64url'));return ['patient','therapist'].includes(d.role)&&d.exp>Date.now()?d.role:null}catch{return null}}
 function safeEqual(a,b){if(typeof a!=='string'||typeof b!=='string')return false;const aa=Buffer.from(a),bb=Buffer.from(b);return aa.length===bb.length&&timingSafeEqual(aa,bb)}
-async function redis(...command){const r=await fetch(process.env.UPSTASH_REDIS_REST_URL,{method:'POST',headers:{Authorization:`Bearer ${process.env.UPSTASH_REDIS_REST_TOKEN}`,'Content-Type':'application/json'},body:JSON.stringify(command),signal:AbortSignal.timeout(8000)});if(!r.ok)throw new Error('Storage unavailable');const d=await r.json();if(d.error)throw new Error('Storage unavailable');return d.result}
+async function redis(...command){const config=redisConfig();const r=await fetch(config.url,{method:'POST',headers:{Authorization:`Bearer ${config.token}`,'Content-Type':'application/json'},body:JSON.stringify(command),signal:AbortSignal.timeout(8000)});if(!r.ok)throw new Error('Storage unavailable');const d=await r.json();if(d.error)throw new Error('Storage unavailable');return d.result}
 const read=async k=>{const s=await redis('GET',prefix+k);return s?JSON.parse(s):null};
 const write=(k,v,...args)=>redis('SET',prefix+k,JSON.stringify(v),...args);
 async function currentPlan(){return await read('plan')||{...defaultPlan}}
