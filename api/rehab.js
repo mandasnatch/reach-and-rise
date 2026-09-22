@@ -19,7 +19,11 @@ async function notify(id){const s=await read('session:'+id);if(!s)return 'failed
 }
 export default async function handler(req,res){res.setHeader('Cache-Control','no-store');const send=(n,d)=>res.status(n).json(d);const url=new URL(req.url,'http://localhost'),action=url.searchParams.get('action');
 try{
-if(action==='config'&&req.method==='GET')return send(200,{cloud:configured(),email:emailConfigured()});
+if(action==='config'&&req.method==='GET'){
+ const cloud=configured();
+ if(!cloud)console.warn('Reach & Rise configuration checks',JSON.stringify({redisUrlPresent:Boolean(redisConfig().url),redisTokenPresent:Boolean(redisConfig().token),authSecretMeetsMinimum:(process.env.AUTH_SECRET?.length||0)>=32,patientCodeMeetsMinimum:(process.env.PATIENT_ACCESS_CODE?.length||0)>=12,therapistCodeMeetsMinimum:(process.env.THERAPIST_ACCESS_CODE?.length||0)>=12,accessCodesDiffer:process.env.PATIENT_ACCESS_CODE!==process.env.THERAPIST_ACCESS_CODE}));
+ return send(200,{cloud,email:emailConfigured()});
+}
 if(!configured())return send(503,{error:'Connected demo is not configured. Use the device-local demonstration.'});
 if(!['GET','POST'].includes(req.method))return send(405,{error:'Method not allowed'});
 if(req.method==='POST'){const origin=req.headers.origin;const host=req.headers['x-forwarded-host']||req.headers.host;if(!origin||new URL(origin).host!==host)return send(403,{error:'Request origin rejected'});if(!String(req.headers['content-type']).startsWith('application/json'))return send(415,{error:'JSON required'});if(JSON.stringify(req.body||{}).length>12000)return send(413,{error:'Request too large'});}
